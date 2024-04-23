@@ -7,5 +7,5 @@ vagrant init
 vagrant up
 '''
 '''
-vagrant destory
+vagrant destory 
 '''
