@@ -1,0 +1,59 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: install JAVA 17
+      yum: name=java-17-openjdk state=present
+
+    - name: add group tomcat
+      group: name=tomcat
+
+    - name: add user tomcat
+      user: name=tomcat group=tomcat home=/usr/share/tomcat createhome=no
+      become: true
+      become_method: sudo
+
+    - name: Downlaod tomcat
+      get_url: 
+        url: https://downloads.apache.org/tomcat/tomcat-9/v9.0.85/bin/apache-tomcat-9.0.85.tar.gz 
+        dest: /opt/apache-tomcat-9.0.85.tar.gz
+
+    - name: Extract file
+      command: chdir=/usr/share /bin/tar xvf /opt/apache-tomcat-9.0.85.tar.gz -C /opt/ creates=/opt/apache-tomcat-9.0.85
+
+    - name: Create Link
+      file: src=/opt/apache-tomcat-9.0.85 path=/usr/share/tomcat state=link
+
+    - name: Chown tomcat
+      file: path=/usr/share/tomcat owner=tomcat group=tomcat state=directory recurse=yes
+
+    - name: lookup files with a certain pattern
+      find:
+        paths: /usr/share/tomcat/bin/
+        file_type: file
+        patterns: "*.sh"
+      register: shfile
+
+    - name: Chmod sh
+      file:
+        mode: +x
+        path:  "{{ item.path }}"
+      with_items: "{{shfile.files}}"
+
+    - name: copy tomcat.service
+      copy: src=tomcat.service dest=/etc/systemd/system/tomcat.service
+  
+    - name: Allow Firewall
+      ansible.posix.firewalld:
+        zone: public
+        state: enabled
+        permanent: true
+        port: "{{ item.port }}"
+      loop:
+        - {port: "80/tcp"}
+        - {port: "8080/tcp"}
+        - {port: "443/tcp"}
+        - {port: "8443/tcp"}
+
+    - name: Start Tomcat
+      service: name=tomcat state=started enabled=yes daemon_reload=true
